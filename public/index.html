@@ -1,0 +1,707 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Resume Matcher</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0f1117;
+      --surface: #1a1d27;
+      --surface2: #22263a;
+      --border: #2e3350;
+      --accent: #6c63ff;
+      --accent2: #a78bfa;
+      --text: #e2e8f0;
+      --text-muted: #8892a4;
+      --success: #22d3a5;
+      --warning: #f59e0b;
+      --danger: #f87171;
+      --radius: 12px;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      padding: 2rem 1rem;
+    }
+
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
+    }
+
+    header {
+      text-align: center;
+      margin-bottom: 2.5rem;
+    }
+
+    header h1 {
+      font-size: 2rem;
+      font-weight: 700;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin-bottom: 0.5rem;
+    }
+
+    header p {
+      color: var(--text-muted);
+      font-size: 0.95rem;
+    }
+
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1.5rem;
+      margin-bottom: 1.25rem;
+    }
+
+    .card h2 {
+      font-size: 0.85rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-muted);
+      margin-bottom: 1rem;
+    }
+
+    /* File drop zone */
+    .drop-zone {
+      border: 2px dashed var(--border);
+      border-radius: 8px;
+      padding: 2rem;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.2s;
+      position: relative;
+    }
+
+    .drop-zone:hover, .drop-zone.dragover {
+      border-color: var(--accent);
+      background: rgba(108, 99, 255, 0.05);
+    }
+
+    .drop-zone input[type="file"] {
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      cursor: pointer;
+      width: 100%;
+      height: 100%;
+    }
+
+    .drop-zone .icon {
+      font-size: 2rem;
+      margin-bottom: 0.5rem;
+      display: block;
+    }
+
+    .drop-zone p {
+      color: var(--text-muted);
+      font-size: 0.9rem;
+    }
+
+    .drop-zone .file-name {
+      color: var(--success);
+      font-weight: 500;
+      margin-top: 0.5rem;
+      font-size: 0.9rem;
+    }
+
+    /* Tabs */
+    .tabs {
+      display: flex;
+      gap: 0.5rem;
+      margin-bottom: 1rem;
+    }
+
+    .tab-btn {
+      padding: 0.5rem 1rem;
+      background: transparent;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text-muted);
+      cursor: pointer;
+      font-size: 0.875rem;
+      transition: all 0.2s;
+    }
+
+    .tab-btn.active {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: white;
+    }
+
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+
+    input[type="text"], textarea {
+      width: 100%;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0.75rem 1rem;
+      color: var(--text);
+      font-size: 0.9rem;
+      font-family: inherit;
+      resize: vertical;
+      transition: border-color 0.2s;
+      outline: none;
+    }
+
+    input[type="text"]:focus, textarea:focus {
+      border-color: var(--accent);
+    }
+
+    textarea { min-height: 150px; }
+
+    .btn {
+      display: block;
+      width: 100%;
+      padding: 0.9rem;
+      background: linear-gradient(135deg, var(--accent), #8b5cf6);
+      border: none;
+      border-radius: 8px;
+      color: white;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity 0.2s, transform 0.1s;
+    }
+
+    .btn:hover:not(:disabled) { opacity: 0.9; transform: translateY(-1px); }
+    .btn:active:not(:disabled) { transform: translateY(0); }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    /* Results */
+    #results { display: none; }
+
+    .score-ring {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 1.5rem 0;
+    }
+
+    .ring-wrap {
+      position: relative;
+      width: 140px;
+      height: 140px;
+    }
+
+    .ring-wrap svg {
+      transform: rotate(-90deg);
+    }
+
+    .ring-bg { fill: none; stroke: var(--surface2); stroke-width: 12; }
+    .ring-fill {
+      fill: none;
+      stroke-width: 12;
+      stroke-linecap: round;
+      transition: stroke-dashoffset 1.2s cubic-bezier(0.4, 0, 0.2, 1);
+      stroke-dasharray: 339.29;
+      stroke-dashoffset: 339.29;
+    }
+
+    .ring-score {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .ring-score .num {
+      font-size: 2rem;
+      font-weight: 700;
+      line-height: 1;
+    }
+
+    .ring-score .label {
+      font-size: 0.65rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .score-label {
+      font-size: 1.1rem;
+      font-weight: 600;
+    }
+
+    .summary-text {
+      color: var(--text-muted);
+      font-size: 0.9rem;
+      line-height: 1.6;
+    }
+
+    /* Tags */
+    .tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.4rem;
+      margin-top: 0.75rem;
+    }
+
+    .tag {
+      padding: 0.25rem 0.65rem;
+      border-radius: 20px;
+      font-size: 0.8rem;
+      font-weight: 500;
+      background: rgba(248, 113, 113, 0.15);
+      color: var(--danger);
+      border: 1px solid rgba(248, 113, 113, 0.3);
+    }
+
+    /* Missing skills */
+    .skill-item {
+      display: flex;
+      gap: 0.75rem;
+      align-items: flex-start;
+      padding: 0.75rem;
+      background: var(--surface2);
+      border-radius: 8px;
+      margin-bottom: 0.5rem;
+    }
+
+    .importance-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      margin-top: 6px;
+      flex-shrink: 0;
+    }
+
+    .importance-dot.high { background: var(--danger); }
+    .importance-dot.medium { background: var(--warning); }
+    .importance-dot.low { background: var(--success); }
+
+    .skill-name {
+      font-weight: 600;
+      font-size: 0.9rem;
+      margin-bottom: 0.2rem;
+    }
+
+    .skill-detail {
+      color: var(--text-muted);
+      font-size: 0.82rem;
+      line-height: 1.5;
+    }
+
+    .importance-badge {
+      font-size: 0.7rem;
+      padding: 0.1rem 0.45rem;
+      border-radius: 4px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-left: 0.4rem;
+    }
+
+    .importance-badge.high { background: rgba(248,113,113,0.15); color: var(--danger); }
+    .importance-badge.medium { background: rgba(245,158,11,0.15); color: var(--warning); }
+    .importance-badge.low { background: rgba(34,211,165,0.15); color: var(--success); }
+
+    /* Strengths */
+    .strength-item {
+      display: flex;
+      gap: 0.6rem;
+      align-items: flex-start;
+      padding: 0.5rem 0;
+      border-bottom: 1px solid var(--border);
+      font-size: 0.9rem;
+      line-height: 1.5;
+    }
+
+    .strength-item:last-child { border-bottom: none; }
+    .strength-item::before { content: "✓"; color: var(--success); font-weight: 700; flex-shrink: 0; margin-top: 1px; }
+
+    /* Suggestions */
+    .suggestion-item {
+      padding: 0.75rem;
+      background: var(--surface2);
+      border-left: 3px solid var(--accent);
+      border-radius: 0 8px 8px 0;
+      margin-bottom: 0.5rem;
+    }
+
+    .suggestion-title {
+      font-weight: 600;
+      font-size: 0.9rem;
+      margin-bottom: 0.3rem;
+      color: var(--accent2);
+    }
+
+    .suggestion-detail {
+      font-size: 0.84rem;
+      color: var(--text-muted);
+      line-height: 1.5;
+    }
+
+    /* Loading */
+    .loader {
+      display: none;
+      text-align: center;
+      padding: 2rem;
+      color: var(--text-muted);
+    }
+
+    .loader.active { display: block; }
+
+    .spinner {
+      width: 36px;
+      height: 36px;
+      border: 3px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin: 0 auto 1rem;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .error-msg {
+      background: rgba(248, 113, 113, 0.1);
+      border: 1px solid rgba(248, 113, 113, 0.3);
+      color: var(--danger);
+      padding: 0.75rem 1rem;
+      border-radius: 8px;
+      font-size: 0.9rem;
+      display: none;
+      margin-bottom: 1rem;
+    }
+
+    .error-msg.show { display: block; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>Resume Matcher</h1>
+      <p>See how well your resume matches a job posting — and how to improve it.</p>
+    </header>
+
+    <!-- Form -->
+    <div id="form-section">
+      <!-- Resume Upload -->
+      <div class="card">
+        <h2>Your Resume</h2>
+        <div class="drop-zone" id="drop-zone">
+          <input type="file" id="resume-file" accept=".pdf" />
+          <span class="icon">📄</span>
+          <p>Drop your PDF here or click to browse</p>
+          <p class="file-name" id="file-name"></p>
+        </div>
+      </div>
+
+      <!-- Job Posting -->
+      <div class="card">
+        <h2>Job Posting</h2>
+        <div class="tabs">
+          <button class="tab-btn active" data-tab="paste">Paste Description</button>
+          <button class="tab-btn" data-tab="url">Job URL</button>
+        </div>
+
+        <div class="tab-content active" id="tab-paste">
+          <textarea id="job-description" placeholder="Paste the full job description here..."></textarea>
+        </div>
+
+        <div class="tab-content" id="tab-url">
+          <input type="text" id="job-url" placeholder="https://company.com/jobs/..." />
+        </div>
+      </div>
+
+      <div class="error-msg" id="error-msg"></div>
+
+      <button class="btn" id="analyze-btn" onclick="analyze()">Analyze Match</button>
+    </div>
+
+    <!-- Loading -->
+    <div class="loader" id="loader">
+      <div class="spinner"></div>
+      <p>Analyzing your resume against the job posting...</p>
+    </div>
+
+    <!-- Results -->
+    <div id="results">
+      <!-- Score -->
+      <div class="card">
+        <div class="score-ring">
+          <div class="ring-wrap">
+            <svg viewBox="0 0 120 120" width="140" height="140">
+              <circle class="ring-bg" cx="60" cy="60" r="54" />
+              <circle class="ring-fill" id="ring-fill" cx="60" cy="60" r="54" />
+            </svg>
+            <div class="ring-score">
+              <span class="num" id="score-num">0</span>
+              <span class="label">match</span>
+            </div>
+          </div>
+          <div class="score-label" id="score-label"></div>
+        </div>
+        <p class="summary-text" id="summary"></p>
+      </div>
+
+      <!-- Keyword Gaps -->
+      <div class="card" id="keywords-card" style="display:none">
+        <h2>Missing Keywords</h2>
+        <div class="tags" id="keyword-tags"></div>
+      </div>
+
+      <!-- Missing Skills -->
+      <div class="card" id="missing-card" style="display:none">
+        <h2>Key Gaps</h2>
+        <div id="missing-list"></div>
+      </div>
+
+      <!-- Strengths -->
+      <div class="card" id="strengths-card" style="display:none">
+        <h2>Your Strengths for This Role</h2>
+        <div id="strengths-list"></div>
+      </div>
+
+      <!-- Suggestions -->
+      <div class="card" id="suggestions-card" style="display:none">
+        <h2>Suggestions to Improve Your Application</h2>
+        <div id="suggestions-list"></div>
+      </div>
+
+      <button class="btn" onclick="reset()" style="background: var(--surface2); margin-top: 0.5rem;">
+        Analyze Another
+      </button>
+    </div>
+  </div>
+
+  <script>
+    // Tab switching
+    document.querySelectorAll(".tab-btn").forEach(btn => {
+      btn.addEventListener("click", () => {
+        document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
+        document.querySelectorAll(".tab-content").forEach(c => c.classList.remove("active"));
+        btn.classList.add("active");
+        document.getElementById("tab-" + btn.dataset.tab).classList.add("active");
+      });
+    });
+
+    // File drop zone
+    const dropZone = document.getElementById("drop-zone");
+    const fileInput = document.getElementById("resume-file");
+    const fileName = document.getElementById("file-name");
+
+    fileInput.addEventListener("change", () => {
+      if (fileInput.files[0]) fileName.textContent = fileInput.files[0].name;
+    });
+
+    dropZone.addEventListener("dragover", e => { e.preventDefault(); dropZone.classList.add("dragover"); });
+    dropZone.addEventListener("dragleave", () => dropZone.classList.remove("dragover"));
+    dropZone.addEventListener("drop", e => {
+      e.preventDefault();
+      dropZone.classList.remove("dragover");
+      const file = e.dataTransfer.files[0];
+      if (file && file.type === "application/pdf") {
+        const dt = new DataTransfer();
+        dt.items.add(file);
+        fileInput.files = dt.files;
+        fileName.textContent = file.name;
+      }
+    });
+
+    function showError(msg) {
+      const el = document.getElementById("error-msg");
+      el.textContent = msg;
+      el.classList.add("show");
+    }
+
+    function hideError() {
+      document.getElementById("error-msg").classList.remove("show");
+    }
+
+    async function analyze() {
+      hideError();
+
+      const file = fileInput.files[0];
+      if (!file) return showError("Please upload your resume (PDF).");
+
+      const activeTab = document.querySelector(".tab-btn.active").dataset.tab;
+      const jobDescription = document.getElementById("job-description").value.trim();
+      const jobUrl = document.getElementById("job-url").value.trim();
+
+      if (activeTab === "paste" && !jobDescription) return showError("Please paste the job description.");
+      if (activeTab === "url" && !jobUrl) return showError("Please enter the job posting URL.");
+
+      // Show loader
+      document.getElementById("form-section").style.display = "none";
+      document.getElementById("loader").classList.add("active");
+      document.getElementById("results").style.display = "none";
+
+      const formData = new FormData();
+      formData.append("resume", file);
+      if (activeTab === "paste") {
+        formData.append("jobDescription", jobDescription);
+      } else {
+        formData.append("jobUrl", jobUrl);
+      }
+
+      try {
+        const response = await fetch("/api/analyze", { method: "POST", body: formData });
+
+        if (!response.ok) {
+          const err = await response.json();
+          throw new Error(err.error || "Analysis failed.");
+        }
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = "";
+        let fullText = "";
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split("\n");
+          buffer = lines.pop();
+
+          for (const line of lines) {
+            if (!line.startsWith("data: ")) continue;
+            const data = JSON.parse(line.slice(6));
+            if (data.error) throw new Error(data.error);
+            if (data.chunk) fullText += data.chunk;
+            if (data.done) {
+              renderResults(fullText);
+            }
+          }
+        }
+      } catch (err) {
+        document.getElementById("loader").classList.remove("active");
+        document.getElementById("form-section").style.display = "block";
+        showError(err.message);
+      }
+    }
+
+    function renderResults(rawText) {
+      // Extract JSON from the response (Claude might wrap it in markdown code blocks)
+      let jsonText = rawText.trim();
+      const jsonMatch = jsonText.match(/```(?:json)?\s*([\s\S]*?)```/);
+      if (jsonMatch) jsonText = jsonMatch[1].trim();
+
+      // Find first { and last }
+      const start = jsonText.indexOf("{");
+      const end = jsonText.lastIndexOf("}");
+      if (start !== -1 && end !== -1) jsonText = jsonText.slice(start, end + 1);
+
+      let data;
+      try {
+        data = JSON.parse(jsonText);
+      } catch {
+        document.getElementById("loader").classList.remove("active");
+        document.getElementById("form-section").style.display = "block";
+        showError("Could not parse analysis results. Please try again.");
+        return;
+      }
+
+      document.getElementById("loader").classList.remove("active");
+
+      // Score ring
+      const score = Math.max(0, Math.min(100, data.matchScore || 0));
+      const circumference = 339.29;
+      const offset = circumference - (score / 100) * circumference;
+
+      const ring = document.getElementById("ring-fill");
+      const color = score >= 70 ? "#22d3a5" : score >= 45 ? "#f59e0b" : "#f87171";
+      ring.style.stroke = color;
+
+      setTimeout(() => { ring.style.strokeDashoffset = offset; }, 100);
+
+      // Animate score number
+      const numEl = document.getElementById("score-num");
+      numEl.style.color = color;
+      let current = 0;
+      const step = Math.ceil(score / 40);
+      const timer = setInterval(() => {
+        current = Math.min(current + step, score);
+        numEl.textContent = current + "%";
+        if (current >= score) clearInterval(timer);
+      }, 30);
+
+      // Score label
+      const labelEl = document.getElementById("score-label");
+      labelEl.textContent = score >= 80 ? "Excellent Match" : score >= 60 ? "Good Match" : score >= 40 ? "Partial Match" : "Weak Match";
+      labelEl.style.color = color;
+
+      // Summary
+      document.getElementById("summary").textContent = data.summary || "";
+
+      // Keyword gaps
+      if (data.keywordGaps && data.keywordGaps.length) {
+        document.getElementById("keywords-card").style.display = "block";
+        document.getElementById("keyword-tags").innerHTML = data.keywordGaps.map(
+          k => `<span class="tag">${k}</span>`
+        ).join("");
+      }
+
+      // Missing skills
+      if (data.missingSkills && data.missingSkills.length) {
+        document.getElementById("missing-card").style.display = "block";
+        document.getElementById("missing-list").innerHTML = data.missingSkills.map(s => `
+          <div class="skill-item">
+            <div class="importance-dot ${s.importance}"></div>
+            <div>
+              <div class="skill-name">
+                ${s.skill}
+                <span class="importance-badge ${s.importance}">${s.importance}</span>
+              </div>
+              <div class="skill-detail">${s.detail}</div>
+            </div>
+          </div>
+        `).join("");
+      }
+
+      // Strengths
+      if (data.strengths && data.strengths.length) {
+        document.getElementById("strengths-card").style.display = "block";
+        document.getElementById("strengths-list").innerHTML = data.strengths.map(
+          s => `<div class="strength-item">${s}</div>`
+        ).join("");
+      }
+
+      // Suggestions
+      if (data.suggestions && data.suggestions.length) {
+        document.getElementById("suggestions-card").style.display = "block";
+        document.getElementById("suggestions-list").innerHTML = data.suggestions.map(s => `
+          <div class="suggestion-item">
+            <div class="suggestion-title">${s.title}</div>
+            <div class="suggestion-detail">${s.detail}</div>
+          </div>
+        `).join("");
+      }
+
+      document.getElementById("results").style.display = "block";
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+
+    function reset() {
+      document.getElementById("results").style.display = "none";
+      document.getElementById("form-section").style.display = "block";
+      document.getElementById("keywords-card").style.display = "none";
+      document.getElementById("missing-card").style.display = "none";
+      document.getElementById("strengths-card").style.display = "none";
+      document.getElementById("suggestions-card").style.display = "none";
+      fileInput.value = "";
+      fileName.textContent = "";
+      hideError();
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Skill(claude-api)",
+      "Skill(claude-api:*)",
+      "Bash(node -e \":*)",
+      "Bash(echo $ANTHROPIC_API_KEY)"
+    ]
+  }
+}
