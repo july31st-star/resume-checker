@@ -4,12 +4,12 @@ const multer = require("multer");
 const pdfParse = require("pdf-parse");
 const axios = require("axios");
 const cheerio = require("cheerio");
-const { GoogleGenerativeAI } = require("@google/generative-ai");
+const Groq = require("groq-sdk");
 const path = require("path");
 
 const app = express();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
 app.use(express.json());
 app.use(express.static(path.join(__dirname, "public")));
@@ -108,11 +108,15 @@ Provide your analysis in the following JSON format ONLY (no extra text outside t
 
 Be specific and actionable. Focus on what will genuinely improve the candidate's chances.`;
 
-    const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
-    const result = await model.generateContentStream(prompt);
+    const stream = await groq.chat.completions.create({
+      model: "llama-3.3-70b-versatile",
+      messages: [{ role: "user", content: prompt }],
+      max_tokens: 2000,
+      stream: true,
+    });
 
-    for await (const chunk of result.stream) {
-      const text = chunk.text();
+    for await (const chunk of stream) {
+      const text = chunk.choices[0]?.delta?.content || "";
       if (text) {
         res.write(`data: ${JSON.stringify({ chunk: text })}\n\n`);
       }
@@ -123,9 +127,9 @@ Be specific and actionable. Focus on what will genuinely improve the candidate's
   } catch (err) {
     console.error("Analysis error:", err);
     let userMessage = "Analysis failed. Please try again.";
-    if (err.message?.includes("API key") || err.message?.includes("API_KEY") || err.status === 401 || err.status === 403) {
-      userMessage = "Invalid or missing API key. Set GEMINI_API_KEY in your .env file and restart the server.";
-    } else if (err.status === 429 || err.message?.includes("quota")) {
+    if (err.status === 401 || err.message?.includes("API key") || err.message?.includes("api_key")) {
+      userMessage = "Invalid or missing API key. Set GROQ_API_KEY in your .env file and restart the server.";
+    } else if (err.status === 429) {
       userMessage = "Rate limit reached. Please wait a moment and try again.";
     }
     if (!res.headersSent) {
