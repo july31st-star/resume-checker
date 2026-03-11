@@ -4,12 +4,12 @@ const multer = require("multer");
 const pdfParse = require("pdf-parse");
 const axios = require("axios");
 const cheerio = require("cheerio");
-const Anthropic = require("@anthropic-ai/sdk");
+const { GoogleGenerativeAI } = require("@google/generative-ai");
 const path = require("path");
 
 const app = express();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
-const client = new Anthropic.default();
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
 app.use(express.json());
 app.use(express.static(path.join(__dirname, "public")));
@@ -25,10 +25,8 @@ async function fetchJobFromURL(url) {
     timeout: 10000,
   });
   const $ = cheerio.load(response.data);
-  // Remove scripts, styles, nav, footer to get cleaner content
   $("script, style, nav, footer, header, noscript").remove();
   const text = $("body").text().replace(/\s+/g, " ").trim();
-  // Limit to 8000 chars to avoid bloating context
   return text.slice(0, 8000);
 }
 
@@ -69,7 +67,7 @@ app.post("/api/analyze", upload.single("resume"), async (req, res) => {
       return res.status(400).json({ error: "Job description is too short or empty." });
     }
 
-    // Stream the analysis from Claude
+    // Stream the analysis from Gemini
     res.setHeader("Content-Type", "text/event-stream");
     res.setHeader("Cache-Control", "no-cache");
     res.setHeader("Connection", "keep-alive");
@@ -110,22 +108,13 @@ Provide your analysis in the following JSON format ONLY (no extra text outside t
 
 Be specific and actionable. Focus on what will genuinely improve the candidate's chances.`;
 
-    const stream = await client.messages.stream({
-      model: "claude-opus-4-6",
-      max_tokens: 2000,
-      thinking: { type: "adaptive" },
-      messages: [{ role: "user", content: prompt }],
-    });
+    const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+    const result = await model.generateContentStream(prompt);
 
-    let fullText = "";
-
-    for await (const event of stream) {
-      if (
-        event.type === "content_block_delta" &&
-        event.delta.type === "text_delta"
-      ) {
-        fullText += event.delta.text;
-        res.write(`data: ${JSON.stringify({ chunk: event.delta.text })}\n\n`);
+    for await (const chunk of result.stream) {
+      const text = chunk.text();
+      if (text) {
+        res.write(`data: ${JSON.stringify({ chunk: text })}\n\n`);
       }
     }
 
@@ -134,12 +123,10 @@ Be specific and actionable. Focus on what will genuinely improve the candidate's
   } catch (err) {
     console.error("Analysis error:", err);
     let userMessage = "Analysis failed. Please try again.";
-    if (err.status === 401 || err.message?.includes("authentication") || err.message?.includes("apiKey") || err.message?.includes("API key")) {
-      userMessage = "Invalid or missing API key. Set ANTHROPIC_API_KEY in your .env file and restart the server.";
-    } else if (err.status === 429) {
+    if (err.message?.includes("API key") || err.message?.includes("API_KEY") || err.status === 401 || err.status === 403) {
+      userMessage = "Invalid or missing API key. Set GEMINI_API_KEY in your .env file and restart the server.";
+    } else if (err.status === 429 || err.message?.includes("quota")) {
       userMessage = "Rate limit reached. Please wait a moment and try again.";
-    } else if (err.status >= 500) {
-      userMessage = "Claude API is temporarily unavailable. Please try again in a moment.";
     }
     if (!res.headersSent) {
       res.status(500).json({ error: userMessage });

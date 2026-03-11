@@ -4,7 +4,17 @@
       "Skill(claude-api)",
       "Skill(claude-api:*)",
       "Bash(node -e \":*)",
-      "Bash(echo $ANTHROPIC_API_KEY)"
+      "Bash(echo $ANTHROPIC_API_KEY)",
+      "Bash(vercel --version)",
+      "Bash(npm install:*)",
+      "Bash(sudo npm:*)",
+      "Bash(npx vercel:*)",
+      "Bash(./node_modules/.bin/vercel --version)",
+      "Bash(./node_modules/.bin/vercel whoami:*)",
+      "Bash(./node_modules/.bin/vercel --prod --yes)",
+      "Bash(./node_modules/.bin/vercel --prod --yes --name resume-checker)",
+      "Bash(./node_modules/.bin/vercel env:*)",
+      "Bash(./node_modules/.bin/vercel logs:*)"
     ]
   }
 }
